@@ -12,7 +12,7 @@ class MongoUserDataSource(db:CoroutineDatabase) : UserDataSource {
         return users.findOne(User::username eq userName)
     }
 
-    override suspend fun insertUSer(user: User): Boolean {
+    override suspend fun insertUser(user: User): Boolean {
         return users.insertOne(user).wasAcknowledged()
     }
 }

@@ -1,3 +1,3 @@
 package com.francotte.security.hashing
 
-data class SaltedHash(val hash:String, val salt:String)
+data class Hash(val hash:String)

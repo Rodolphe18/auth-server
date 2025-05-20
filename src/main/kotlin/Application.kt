@@ -16,7 +16,7 @@ fun main(args: Array<String>) {
 fun Application.module() {
     val mongoDbPassword = System.getenv("MONGO_PWD")
     val mongoDbName = "rodolphefrancotte18"
-    val db = KMongo.createClient(connectionString = "mongodb+srv://rodolphefrancotte18:$mongoDbPassword@cluster0.zqu8fvb.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0").coroutine.getDatabase(mongoDbName)
+    val db = KMongo.createClient(connectionString = "mongodb+srv://rodolphe18:$mongoDbPassword@cluster0.zqu8fvb.mongodb.net/$mongoDbName?retryWrites=true&w=majority&appName=Cluster0").coroutine.getDatabase(mongoDbName)
     val userDataSource = MongoUserDataSource(db)
     val tokenService = JwtTokenService()
     val tokenConfig = TokenConfig(issuer = environment.config.property("jwt.issuer").getString(), audience = environment.config.property("jwt.audience").getString(), expiresIn = 365L * 1000L * 60L * 60L * 24L, secret = System.getenv("JWT_SECRET"))
