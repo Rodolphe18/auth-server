@@ -17,10 +17,10 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.slf4j.event.*
 
-fun Application.configureRouting(userDataSource: UserDataSource, hashingInterface: HashingInterface, tokenInterface: TokenInterface, tokenConfig: TokenConfig) {
+fun Application.configureRouting(userDataSource: UserDataSource, hashingInterface: HashingInterface, tokenInterface: TokenInterface, tokenConfig: TokenConfig, token:String) {
     routing {
-        signIn(hashingInterface,userDataSource,tokenInterface,tokenConfig)
-        signUp(hashingInterface, userDataSource)
+        signUp(hashingInterface, userDataSource,tokenInterface,tokenConfig)
+        signIn(hashingInterface,userDataSource,token)
         authenticate()
         getSecretInfo()
     }

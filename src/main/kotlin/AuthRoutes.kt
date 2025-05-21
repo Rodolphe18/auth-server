@@ -16,8 +16,14 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.Dispatchers
+import org.litote.kmongo.coroutine.CoroutineCollection
+import org.litote.kmongo.eq
+import kotlin.random.Random
+import kotlin.uuid.ExperimentalUuidApi
 
-fun Route.signUp(hashingInterface: HashingInterface, userDataSource: UserDataSource) {
+
+fun Route.signUp(hashingInterface: HashingInterface, userDataSource: UserDataSource, tokenInterface: TokenInterface,
+                 tokenConfig: TokenConfig) {
     post("signup") {
         with(Dispatchers.IO) {
             val request = runCatching { call.receive<AuthRequest>() }.getOrElse {
@@ -31,13 +37,17 @@ fun Route.signUp(hashingInterface: HashingInterface, userDataSource: UserDataSou
                 call.respond(status = HttpStatusCode.Gone, "")
             }
             val hash = hashingInterface.generateHash(request.password)
-            val user = User(username = request.username, password = hash.hash)
+            val userId = generateUniqueUserId(userDataSource.getUsers())
+            val user = User(userId = userId,username = request.username, password = hash.hash)
             val wasAcknowledged = userDataSource.insertUser(user)
             if (!wasAcknowledged) {
                 call.respond(status = HttpStatusCode.Conflict, "")
                 return@post
             }
-            call.respond(status = HttpStatusCode.OK, "")
+            val token =
+                tokenInterface.generate(config = tokenConfig, TokenClaim(name = "userId", value = user.userId.toString()))
+
+            call.respond(status = HttpStatusCode.OK, AuthResponse(token = token, user = User(user.userId,user.username)))
         }
 
     }
@@ -46,8 +56,7 @@ fun Route.signUp(hashingInterface: HashingInterface, userDataSource: UserDataSou
 fun Route.signIn(
     hashingInterface: HashingInterface,
     userDataSource: UserDataSource,
-    tokenInterface: TokenInterface,
-    tokenConfig: TokenConfig
+    token:String
 ) {
 
     post("signin") {
@@ -63,15 +72,13 @@ fun Route.signIn(
             }
             val isValidPassword = hashingInterface.verifyHash(
                 value = request.password,
-                saltedHash = Hash(hash = user.password)
+                hash = Hash(hash = user.password)
             )
             if (!isValidPassword) {
                 call.respond(status = HttpStatusCode.Conflict, "${user.password} - ${ request.password}  ")
                 return@post
             }
-            val token =
-                tokenInterface.generate(config = tokenConfig, TokenClaim(name = "userId", value = user.id.toString()))
-            call.respond(status = HttpStatusCode.OK, message = AuthResponse(token = token))
+            call.respond(status = HttpStatusCode.Created, message = AuthResponse(token = token, user = User(user.userId, user.username)))
         }
     }
 }
@@ -92,4 +99,12 @@ fun Route.getSecretInfo() {
             call.respond(HttpStatusCode.OK, "your userId is $userId")
         }
     }
+}
+
+suspend fun generateUniqueUserId(userCollection: CoroutineCollection<User>): Long {
+    var id: Long
+    do {
+        id = Random.nextLong(1_000_000_000L, 9_999_999_999L)
+    } while (userCollection.find(User::userId eq id).first() != null)
+    return id
 }
