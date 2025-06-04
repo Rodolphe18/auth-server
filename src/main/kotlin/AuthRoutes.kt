@@ -19,12 +19,13 @@ import kotlinx.coroutines.Dispatchers
 import org.litote.kmongo.coroutine.CoroutineCollection
 import org.litote.kmongo.eq
 import kotlin.random.Random
-import kotlin.uuid.ExperimentalUuidApi
 
 
-fun Route.signUp(hashingInterface: HashingInterface, userDataSource: UserDataSource, tokenInterface: TokenInterface,
-                 tokenConfig: TokenConfig) {
-    post("signup") {
+fun Route.signUp(
+    hashingInterface: HashingInterface, userDataSource: UserDataSource, tokenInterface: TokenInterface,
+    tokenConfig: TokenConfig
+) {
+    post("users/create") {
         with(Dispatchers.IO) {
             val request = runCatching { call.receive<AuthRequest>() }.getOrElse {
                 call.respond(status = HttpStatusCode.BadRequest, message = "")
@@ -38,16 +39,22 @@ fun Route.signUp(hashingInterface: HashingInterface, userDataSource: UserDataSou
             }
             val hash = hashingInterface.generateHash(request.password)
             val userId = generateUniqueUserId(userDataSource.getUsers())
-            val user = User(userId = userId,username = request.username, password = hash.hash)
+            val user = User(userId = userId, username = request.username, password = hash.hash)
             val wasAcknowledged = userDataSource.insertUser(user)
             if (!wasAcknowledged) {
                 call.respond(status = HttpStatusCode.Conflict, "")
                 return@post
             }
             val token =
-                tokenInterface.generate(config = tokenConfig, TokenClaim(name = "userId", value = user.userId.toString()))
+                tokenInterface.generate(
+                    config = tokenConfig,
+                    TokenClaim(name = "userId", value = user.userId.toString())
+                )
 
-            call.respond(status = HttpStatusCode.OK, AuthResponse(token = token, user = User(user.userId,user.username)))
+            call.respond(
+                status = HttpStatusCode.OK,
+                AuthResponse(token = token, user = User(user.userId, user.username))
+            )
         }
 
     }
@@ -56,10 +63,10 @@ fun Route.signUp(hashingInterface: HashingInterface, userDataSource: UserDataSou
 fun Route.signIn(
     hashingInterface: HashingInterface,
     userDataSource: UserDataSource,
-    token:String
+    token: String
 ) {
 
-    post("signin") {
+    post("users/auth") {
         with(Dispatchers.IO) {
             val request = runCatching { call.receive<AuthRequest>() }.getOrElse {
                 call.respond(status = HttpStatusCode.BadRequest, message = "")
@@ -75,13 +82,37 @@ fun Route.signIn(
                 hash = Hash(hash = user.password)
             )
             if (!isValidPassword) {
-                call.respond(status = HttpStatusCode.Conflict, "${user.password} - ${ request.password}  ")
+                call.respond(status = HttpStatusCode.Conflict, "${user.password} - ${request.password}  ")
                 return@post
             }
-            call.respond(status = HttpStatusCode.Created, message = AuthResponse(token = token, user = User(user.userId, user.username)))
+            call.respond(
+                status = HttpStatusCode.Created,
+                message = AuthResponse(token = token, user = User(user.userId, user.username))
+            )
         }
     }
 }
+
+fun Route.deleteUser(userDataSource: UserDataSource) {
+
+    delete("users/{userId}") {
+        with(Dispatchers.IO) {
+            val userIdParam = call.parameters["userId"]
+            val userId = userIdParam?.toLongOrNull()
+            if (userId == null) {
+                call.respond(HttpStatusCode.BadRequest, "Paramètre userId invalide ou absent.")
+                return@delete
+            }
+            val wasDeleted = userDataSource.deleteUserById(userId)
+            if (wasDeleted) {
+                call.respond(HttpStatusCode.OK, "Utilisateur supprimé avec succès.")
+            } else {
+                call.respond(HttpStatusCode.NotFound, "Utilisateur non trouvé.")
+            }
+        }
+    }
+}
+
 
 fun Route.authenticate() {
     authenticate {

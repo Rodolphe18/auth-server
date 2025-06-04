@@ -7,4 +7,6 @@ interface UserDataSource {
     suspend fun getUserByName(userName: String):User?
     suspend fun insertUser(user:User) : Boolean
     suspend fun getUsers(): CoroutineCollection<User>
+    suspend fun deleteUserById(userId: Long): Boolean
 }
+

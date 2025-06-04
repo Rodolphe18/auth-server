@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.ktor)
     alias(libs.plugins.kotlin.plugin.serialization)
+    id("com.gradleup.shadow") version "9.0.0-beta13"
 }
 
 group = "com.francotte"
@@ -31,4 +32,21 @@ dependencies {
     implementation(libs.logback.classic)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)
+}
+
+val remoteHost = "root@46.202.170.205"
+val remotePath = "/root/jwtauth/jwtauth.jar"
+val jarLocalPath = "$buildDir/libs/auth-server-all.jar"
+val remoteService = "jwtauth.service"
+val sshKeyPath = "keys/id_rsa"
+
+val deployJar by tasks.registering(Exec::class) {
+    dependsOn("shadowJar")
+    group = "deployment"
+    description = "Build le JAR, le déploie et redémarre le service distant"
+
+    commandLine("bash", "-c", """
+        scp -i $sshKeyPath -o StrictHostKeyChecking=no $jarLocalPath $remoteHost:$remotePath && \
+        ssh -i $sshKeyPath -o StrictHostKeyChecking=no $remoteHost 'systemctl restart $remoteService && systemctl status $remoteService --no-pager'
+    """.trimIndent())
 }
