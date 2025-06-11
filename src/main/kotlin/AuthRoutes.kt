@@ -39,21 +39,20 @@ fun Route.signUp(
             }
             val hash = hashingInterface.generateHash(request.password)
             val userId = generateUniqueUserId(userDataSource.getUsers())
-            val user = User(userId = userId, username = request.username, password = hash.hash)
+            val token =
+                tokenInterface.generate(
+                    config = tokenConfig,
+                    TokenClaim(name = "userId", value = userId.toString())
+                )
+            val user = User(userId = userId, username = request.username, password = hash.hash, token = token)
             val wasAcknowledged = userDataSource.insertUser(user)
             if (!wasAcknowledged) {
                 call.respond(status = HttpStatusCode.Conflict, "")
                 return@post
             }
-            val token =
-                tokenInterface.generate(
-                    config = tokenConfig,
-                    TokenClaim(name = "userId", value = user.userId.toString())
-                )
-
             call.respond(
                 status = HttpStatusCode.OK,
-                AuthResponse(token = token, user = User(user.userId, user.username))
+                AuthResponse(token = token, user = User(user.userId, user.username, token = token))
             )
         }
 
@@ -62,8 +61,7 @@ fun Route.signUp(
 
 fun Route.signIn(
     hashingInterface: HashingInterface,
-    userDataSource: UserDataSource,
-    token: String
+    userDataSource: UserDataSource
 ) {
 
     post("users/auth") {
@@ -74,7 +72,7 @@ fun Route.signIn(
             }
             val user = userDataSource.getUserByName(request.username)
             if (user == null) {
-                call.respond(status = HttpStatusCode.Conflict, "")
+                call.respond(status = HttpStatusCode.Conflict, "L'utilisateur ne semble pas exister")
                 return@post
             }
             val isValidPassword = hashingInterface.verifyHash(
@@ -86,8 +84,8 @@ fun Route.signIn(
                 return@post
             }
             call.respond(
-                status = HttpStatusCode.Created,
-                message = AuthResponse(token = token, user = User(user.userId, user.username))
+                status = HttpStatusCode.Accepted,
+                message = AuthResponse(token = user.token.orEmpty(), user = User(user.userId, user.username))
             )
         }
     }
